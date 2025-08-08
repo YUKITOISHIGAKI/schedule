@@ -140,10 +140,10 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-chouseisan-app';
+        const appId = 'chouseisan-on-github-pages';
         let db, auth;
         let currentEventId = null;
         let currentEventUnsubscribe = null;
@@ -158,11 +158,25 @@
         
         async function initialize() {
             try {
-                if (typeof __firebase_config === 'undefined') {
-                    showError("Firebaseの設定が読み込めませんでした。");
+                // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+                // ★ ここにFirebaseプロジェクトから取得した設定を貼り付けます ★
+                // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+                const firebaseConfig = {
+                  apiKey: "AIzaSyA2ZIXFrJC3nGFTso1EsNnTCjWCkDyWX8Q",
+                  authDomain: "schedule-app-51ab6.firebaseapp.com",
+                  projectId: "schedule-app-51ab6",
+                  storageBucket: "schedule-app-51ab6.firebasestorage.app",
+                  messagingSenderId: "1047698114975",
+                  appId: "1:1047698114975:web:a8e7b4a4bf30f74e4095aa",
+                };
+                // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+
+                // firebaseConfigが初期値のままならエラーを表示
+                if (firebaseConfig.apiKey.startsWith("AIzaSy...")) {
+                    showError("Firebaseの設定が必要です。コード内のfirebaseConfigを、あなた自身のプロジェクトのものに書き換えてください。");
                     return;
                 }
-                const firebaseConfig = JSON.parse(__firebase_config);
+
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -172,11 +186,7 @@
                         startApp();
                     } else {
                          try {
-                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                                await signInWithCustomToken(auth, __initial_auth_token);
-                            } else {
-                                await signInAnonymously(auth);
-                            }
+                            await signInAnonymously(auth);
                         } catch (authError) {
                             console.error("Authentication error:", authError);
                             showError("認証に失敗しました。");
@@ -216,7 +226,7 @@
             errorContainer.classList.remove('hidden');
             loader.classList.add('hidden');
             eventPage.classList.add('hidden');
-            createEventPage.classList.remove('hidden');
+            createEventPage.classList.add('hidden'); // 作成ページも非表示
         }
 
         function handleRouting() {
@@ -367,7 +377,6 @@
             document.getElementById('event-name-display').textContent = eventData.name;
             document.getElementById('event-description-display').textContent = eventData.description;
             
-            // ★修正点: アドバイスに基づき、URL生成ロジックを修正
             const baseUrl = window.location.href.split('?')[0];
             const newUrl  = `${baseUrl}?id=${eventId}`;
             document.getElementById('share-url').value = newUrl;
