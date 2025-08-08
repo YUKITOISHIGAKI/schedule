@@ -165,17 +165,11 @@
                   apiKey: "AIzaSyA2ZIXFrJC3nGFTso1EsNnTCjWCkDyWX8Q",
                   authDomain: "schedule-app-51ab6.firebaseapp.com",
                   projectId: "schedule-app-51ab6",
-                  storageBucket: "schedule-app-51ab6.firebasestorage.app",
+                  storageBucket: "schedule-app-51ab6.appspot.com",
                   messagingSenderId: "1047698114975",
-                  appId: "1:1047698114975:web:a8e7b4a4bf30f74e4095aa",
+                  appId: "1:1047698114975:web:a8e7b4a4bf30f74e4095aa"
                 };
                 // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-
-                // firebaseConfigが初期値のままならエラーを表示
-                if (firebaseConfig.apiKey.startsWith("AIzaSy...")) {
-                    showError("Firebaseの設定が必要です。コード内のfirebaseConfigを、あなた自身のプロジェクトのものに書き換えてください。");
-                    return;
-                }
 
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
