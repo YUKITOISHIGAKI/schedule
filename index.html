@@ -81,8 +81,31 @@
                         <div id="selected-dates-container" class="mt-4 space-y-2"></div>
                     </div>
                     <div>
+                        <label for="event-password" class="block text-sm font-medium text-gray-700 mb-1">パスワード (任意)</label>
+                        <input type="password" id="event-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition" placeholder="閲覧用パスワード">
+                    </div>
+                    <div>
                         <button id="create-event-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 transition-transform transform hover:scale-105">
                             イベントを作成
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="password-prompt" class="hidden">
+             <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+                <h2 class="text-2xl font-bold mb-6 text-gray-800">パスワード認証</h2>
+                <p class="text-gray-600 mb-4">このイベントを閲覧するにはパスワードが必要です。</p>
+                <div class="space-y-4">
+                    <div>
+                        <label for="password-input" class="block text-sm font-medium text-gray-700 mb-1">パスワード</label>
+                        <input type="password" id="password-input" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </div>
+                     <p id="password-error" class="text-red-500 text-sm hidden">パスワードが違います。</p>
+                    <div>
+                        <button id="submit-password-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                            認証
                         </button>
                     </div>
                 </div>
@@ -149,18 +172,17 @@
         let currentEventUnsubscribe = null;
         let selectedDates = [];
         let flatpickrInstance = null;
+        let tempEventData = null; // パスワード認証前の一時的なデータ保持用
 
         const loader = document.getElementById('loader');
         const createEventPage = document.getElementById('create-event-page');
         const eventPage = document.getElementById('event-page');
+        const passwordPrompt = document.getElementById('password-prompt');
         const errorContainer = document.getElementById('error-message');
         const errorText = document.getElementById('error-text');
         
         async function initialize() {
             try {
-                // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-                // ★ ここにFirebaseプロジェクトから取得した設定を貼り付けます ★
-                // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
                 const firebaseConfig = {
                   apiKey: "AIzaSyA2ZIXFrJC3nGFTso1EsNnTCjWCkDyWX8Q",
                   authDomain: "schedule-app-51ab6.firebaseapp.com",
@@ -169,7 +191,6 @@
                   messagingSenderId: "1047698114975",
                   appId: "1:1047698114975:web:a8e7b4a4bf30f74e4095aa"
                 };
-                // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
@@ -202,6 +223,7 @@
         function showPage(page) {
             createEventPage.classList.add('hidden');
             eventPage.classList.add('hidden');
+            passwordPrompt.classList.add('hidden');
             loader.classList.add('hidden');
             errorContainer.classList.add('hidden');
 
@@ -210,6 +232,8 @@
                 initializeCalendar();
             } else if (page === 'event') {
                 eventPage.classList.remove('hidden');
+            } else if (page === 'password') {
+                passwordPrompt.classList.remove('hidden');
             } else if (page === 'loader') {
                 loader.classList.remove('hidden');
             }
@@ -220,7 +244,7 @@
             errorContainer.classList.remove('hidden');
             loader.classList.add('hidden');
             eventPage.classList.add('hidden');
-            createEventPage.classList.add('hidden'); // 作成ページも非表示
+            createEventPage.classList.add('hidden');
         }
 
         function handleRouting() {
@@ -241,6 +265,7 @@
             document.getElementById('back-to-create-btn').addEventListener('click', () => {
                 window.location.href = window.location.href.split('?')[0];
             });
+            document.getElementById('submit-password-btn').addEventListener('click', verifyPassword);
             document.getElementById('selected-dates-container').addEventListener('click', (e) => {
                 if (e.target && e.target.closest('.remove-date-btn')) {
                     const dateToRemove = e.target.closest('.remove-date-btn').dataset.date;
@@ -298,6 +323,7 @@
             const createBtn = document.getElementById('create-event-btn');
             const eventName = document.getElementById('event-name').value.trim();
             const description = document.getElementById('event-description').value.trim();
+            const password = document.getElementById('event-password').value.trim();
 
             if (!eventName || selectedDates.length === 0) {
                 alert('イベント名と候補日程は必須です。');
@@ -316,6 +342,10 @@
                     participants: [],
                     createdAt: serverTimestamp(),
                 };
+
+                if (password) {
+                    eventData.password = password;
+                }
                 
                 const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'chouseisan-events');
                 const docRef = await addDoc(collectionRef, eventData);
@@ -340,15 +370,38 @@
             try {
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
-                    displayEvent(eventId, docSnap.data());
-                    listenForEventUpdates(eventId);
-                    showPage('event');
+                    const eventData = docSnap.data();
+                    tempEventData = eventData; // データを一時保存
+                    
+                    // セッションストレージで認証済みか確認
+                    const isAuthenticated = sessionStorage.getItem(`event_auth_${eventId}`) === 'true';
+
+                    if (eventData.password && !isAuthenticated) {
+                        showPage('password');
+                    } else {
+                        displayEvent(eventId, eventData);
+                        listenForEventUpdates(eventId);
+                        showPage('event');
+                    }
                 } else {
                     showError("指定されたイベントが見つかりません。URLが正しいか確認してください。");
                 }
             } catch (error) {
                 console.error("イベント読み込みエラー:", error);
                 showError("イベントの読み込み中にエラーが発生しました。");
+            }
+        }
+
+        function verifyPassword() {
+            const enteredPassword = document.getElementById('password-input').value;
+            if (enteredPassword === tempEventData.password) {
+                sessionStorage.setItem(`event_auth_${currentEventId}`, 'true');
+                displayEvent(currentEventId, tempEventData);
+                listenForEventUpdates(currentEventId);
+                showPage('event');
+            } else {
+                const passwordError = document.getElementById('password-error');
+                passwordError.classList.remove('hidden');
             }
         }
 
