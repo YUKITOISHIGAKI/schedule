@@ -713,7 +713,7 @@
         }
 
         /** ランキング（○の多い順）を描画（同率は △降順） */
-        function renderRanking(dates, okCounts, maybeCounts) {
+        function renderChartOkOnly(dates, okCounts) {
           const list = document.getElementById('ranking-list');
           const arr = (dates || []).map((d, i) => ({
             idx: i,
@@ -815,4 +815,5 @@
 
 </body>
 </html>
+
 
