@@ -44,6 +44,14 @@
             background-position: right 0.75rem center;
             background-size: 1.25em;
         }
+        /* 👑バッジにホバー効果 */
+        #best-day-badge {
+            cursor: pointer;
+            transition: transform 0.05s ease;
+        }
+        #best-day-badge:active {
+            transform: scale(0.98);
+        }
     </style>
 </head>
 <body class="bg-pink-50 text-gray-800">
@@ -138,6 +146,30 @@
                 <div id="availability-table-container"></div>
             </div>
 
+            <!-- ▼▼ 集計の可視化ブロック（グラフ＋ランキング＋👑） ▼▼ -->
+            <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg mb-8">
+              <h3 class="text-xl font-bold mb-4">集計の可視化</h3>
+
+              <!-- 👑 本命バッジ（クリックで紙吹雪） -->
+              <div id="best-day-badge" class="mb-4 hidden" title="クリックでお祝い！🎉">
+                <span class="inline-flex items-center px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm font-semibold">
+                  👑 本命：<span id="best-day-text" class="ml-1"></span>
+                </span>
+              </div>
+
+              <!-- 棒グラフ -->
+              <div class="w-full max-w-4xl">
+                <canvas id="summary-chart" height="160"></canvas>
+              </div>
+
+              <!-- ランキング -->
+              <div class="mt-6">
+                <h4 class="font-semibold mb-2">○の多い順ランキング</h4>
+                <ol id="ranking-list" class="list-decimal list-inside text-sm text-gray-800 space-y-1"></ol>
+              </div>
+            </div>
+            <!-- ▲▲ 集計の可視化ブロック ▲▲ -->
+
             <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
                 <h3 class="text-xl font-bold mb-4">出欠を登録・更新</h3>
                 <div class="space-y-4">
@@ -160,8 +192,12 @@
         </div>
     </div>
 
+    <!-- ライブラリ読み込み -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://npmcdn.com/flatpickr/dist/l10n/ja.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 紙吹雪ライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -202,7 +238,7 @@
                     if (user) {
                         startApp();
                     } else {
-                         try {
+                        try {
                             await signInAnonymously(auth);
                         } catch (authError) {
                             console.error("Authentication error:", authError);
@@ -277,6 +313,12 @@
                     }
                     renderSelectedDates();
                 }
+            });
+
+            // 👑バッジ クリックで紙吹雪（renderBestBadge 内でも安全に付け直す）
+            const bestBadge = document.getElementById('best-day-badge');
+            bestBadge.addEventListener('click', () => {
+                confettiBurst();
             });
         }
 
@@ -420,8 +462,8 @@
                     displayEvent(eventId, docSnap.data());
                 }
             }, (error) => {
-                 console.error("リアルタイム更新エラー:", error);
-                 showError("イベントの更新情報の取得に失敗しました。");
+                console.error("リアルタイム更新エラー:", error);
+                showError("イベントの更新情報の取得に失敗しました。");
             });
         }
 
@@ -435,6 +477,9 @@
 
             renderAvailabilityTable(eventData.candidateDates, eventData.participants);
             renderAvailabilityOptions(eventData.candidateDates);
+
+            // ▼ 集計ウィジェット（グラフ・ランキング・👑）更新
+            renderSummaryWidgets(eventData.candidateDates, eventData.participants);
         }
         
         function renderAvailabilityTable(dates, participants) {
@@ -568,11 +613,14 @@
 
                 await setDoc(docRef, { participants: participants }, { merge: true });
                 alert('出欠を登録・更新しました。');
-                
+
+                // 入力クリア
                 document.getElementById('participant-name').value = '';
                 document.getElementById('participant-comment').value = '';
                 document.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
 
+                // 軽くお祝い（小さめ紙吹雪）
+                confettiBurst({ mini: true });
 
             } catch (error) {
                 console.error("出欠登録エラー:", error);
@@ -596,6 +644,172 @@
                 alert('URLのコピーに失敗しました。手動でコピーしてください。');
             }
         }
+
+        // ======== 集計 & 可視化 ここから ========
+        let summaryChartInstance = null;
+
+        /** 日付配列・参加者配列から ○△× のカウント配列を返す */
+        function computeSummary(dates, participants) {
+          const n = (dates || []).length;
+          const summary = {
+            '○': Array(n).fill(0),
+            '△': Array(n).fill(0),
+            '×': Array(n).fill(0),
+          };
+          (participants || []).forEach(p => {
+            (p.availability || []).forEach((status, i) => {
+              if (summary[status] && i < n) summary[status][i]++;
+            });
+          });
+          return summary;
+        }
+
+        /** ○の数が最多のインデックスを返す（同率なら最初を採用） */
+        function getBestIndex(okCounts) {
+          let best = -1, bestVal = -1;
+          (okCounts || []).forEach((v, i) => {
+            if (v > bestVal) { bestVal = v; best = i; }
+          });
+          return best;
+        }
+
+        /** ヒューマン可読表示（日付文字列 "YYYY-MM-DD HH:mm" を既存の整形ルールで） */
+        function humanDate(dateStr) {
+          return formatDateForDisplay(dateStr);
+        }
+
+        /** 棒グラフ描画（堆積棒：○△×） */
+        function renderSummaryChart(dates, summary) {
+          const labels = (dates || []).map(d => humanDate(d).replace(' ', '\n'));
+          const ok = summary['○'], maybe = summary['△'], ng = summary['×'];
+
+          const ctx = document.getElementById('summary-chart').getContext('2d');
+
+          // 再描画時に破棄
+          if (summaryChartInstance) {
+            summaryChartInstance.destroy();
+          }
+
+          summaryChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [
+                { label: '○', data: ok, backgroundColor: 'rgba(236, 72, 153, 0.7)' },       // pink-500
+                { label: '△', data: maybe, backgroundColor: 'rgba(251, 146, 60, 0.7)' },   // orange-400
+                { label: '×', data: ng, backgroundColor: 'rgba(239, 68, 68, 0.7)' },       // red-500
+              ]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { position: 'top' },
+                tooltip: { mode: 'index', intersect: false }
+              },
+              scales: {
+                x: { stacked: true, ticks: { maxRotation: 0, minRotation: 0 } },
+                y: { stacked: true, beginAtZero: true, precision: 0 }
+              }
+            }
+          });
+        }
+
+        /** ランキング（○の多い順）を描画（同率は △降順） */
+        function renderRanking(dates, okCounts, maybeCounts) {
+          const list = document.getElementById('ranking-list');
+          const arr = (dates || []).map((d, i) => ({
+            idx: i,
+            label: humanDate(d),
+            ok: okCounts?.[i] || 0,
+            maybe: maybeCounts?.[i] || 0
+          }));
+          arr.sort((a, b) => (b.ok - a.ok) || (b.maybe - a.maybe));
+
+          list.innerHTML = '';
+          arr.forEach((item, rank) => {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="font-medium">${item.label}</span> — ○ ${item.ok}人 / △ ${item.maybe}人`;
+            if (rank === 0) li.innerHTML = `👑 ${li.innerHTML}`;
+            list.appendChild(li);
+          });
+        }
+
+        /** 本命バッジ（👑）表示＆クリック紙吹雪 */
+        function renderBestBadge(dates, okCounts) {
+          const badge = document.getElementById('best-day-badge');
+          const text = document.getElementById('best-day-text');
+
+          if (!dates || dates.length === 0) {
+            badge.classList.add('hidden');
+            return;
+          }
+          const bestIdx = getBestIndex(okCounts || []);
+          const bestLabel = bestIdx >= 0 ? humanDate(dates[bestIdx]) : null;
+          if (bestLabel) {
+            text.textContent = `${bestLabel}（○ ${okCounts[bestIdx]}人）`;
+            badge.classList.remove('hidden');
+            // クリックは setupEventListeners で一度登録済み。念のため重複防止で何もしない。
+          } else {
+            badge.classList.add('hidden');
+          }
+        }
+
+        /** 集計ウィジェット一括更新 */
+        function renderSummaryWidgets(dates, participants) {
+          const summary = computeSummary(dates, participants);
+          renderSummaryChart(dates, summary);
+          renderBestBadge(dates, summary['○']);
+          renderRanking(dates, summary['○'], summary['△']);
+        }
+        // ======== 集計 & 可視化 ここまで ========
+
+        // ======== 紙吹雪（canvas-confetti）ユーティリティ ========
+        function confettiBurst(options = {}) {
+          const { mini = false } = options;
+          const count = mini ? 80 : 180;
+          const spread = mini ? 50 : 75;
+          const ticks = mini ? 150 : 220;
+          const gravity = mini ? 1.0 : 0.9;
+
+          // 中央から2発
+          confetti({
+            particleCount: Math.floor(count * 0.6),
+            spread,
+            startVelocity: 45,
+            gravity,
+            origin: { x: 0.5, y: 0.4 },
+            ticks
+          });
+          setTimeout(() => {
+            confetti({
+              particleCount: Math.floor(count * 0.4),
+              spread: spread + 10,
+              startVelocity: 55,
+              gravity,
+              origin: { x: 0.5, y: 0.6 },
+              ticks
+            });
+          }, 120);
+
+          // 左右から
+          setTimeout(() => {
+            confetti({
+              particleCount: Math.floor(count * 0.3),
+              angle: 60,
+              spread: spread + 10,
+              origin: { x: 0, y: 0.5 },
+              ticks
+            });
+            confetti({
+              particleCount: Math.floor(count * 0.3),
+              angle: 120,
+              spread: spread + 10,
+              origin: { x: 1, y: 0.5 },
+              ticks
+            });
+          }, 180);
+        }
+        // ======== 紙吹雪 ここまで ========
 
         initialize();
 
