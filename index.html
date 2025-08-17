@@ -1,819 +1,633 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>日程調整太郎</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
-    <!-- Flatpickr (カレンダー) のCSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <style>
-        body { font-family: 'M PLUS Rounded 1c', 'Inter', 'Noto Sans JP', sans-serif; }
-        .table-cell {
-            min-width: 120px;
-            text-align: center;
-        }
-        .name-cell {
-            min-width: 120px;
-            max-width: 200px;
-            word-break: break-all;
-        }
-        .summary-row td {
-            font-weight: bold;
-        }
-        .hidden { display: none; }
-        .loader {
-            border: 4px solid #fce7f3; /* pink-50 */
-            border-top: 4px solid #ec4899; /* pink-500 */
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        #candidate-dates-input {
-            cursor: pointer;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ec4899' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='feather feather-calendar'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 0.75rem center;
-            background-size: 1.25em;
-        }
-        /* 👑バッジにホバー効果 */
-        #best-day-badge {
-            cursor: pointer;
-            transition: transform 0.05s ease;
-        }
-        #best-day-badge:active {
-            transform: scale(0.98);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>日程調整太郎</title>
+
+  <!-- UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet"/>
+
+  <!-- Flatpickr -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"/>
+
+  <style>
+    body { font-family: 'M PLUS Rounded 1c','Inter','Noto Sans JP',sans-serif; }
+    .table-cell { min-width: 120px; text-align: center; }
+    .name-cell { min-width: 120px; max-width: 200px; word-break: break-all; }
+    .summary-row td { font-weight: bold; }
+    .hidden { display: none; }
+    .loader {
+      border: 4px solid #fce7f3; border-top: 4px solid #ec4899;
+      border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;
+    }
+    @keyframes spin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+    #candidate-dates-input {
+      cursor: pointer;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ec4899' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='feather feather-calendar'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
+      background-repeat:no-repeat; background-position:right .75rem center; background-size:1.25em;
+    }
+    /* 👑ホバー */
+    #best-day-badge { cursor: pointer; transition: transform .05s ease; }
+    #best-day-badge:active { transform: scale(.98); }
+  </style>
 </head>
 <body class="bg-pink-50 text-gray-800">
+  <div id="app-container" class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+    <header class="mb-8 text-center">
+      <h1 class="text-3xl sm:text-4xl font-bold text-pink-600">日程調整太郎</h1>
+      <p class="mt-2 text-lg text-pink-500">メールで予定調整って面倒だよね</p>
+    </header>
 
-    <div id="app-container" class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-
-        <header class="mb-8 text-center">
-            <h1 class="text-3xl sm:text-4xl font-bold text-pink-600">日程調整太郎</h1>
-            <p class="mt-2 text-lg text-pink-500">メールで予定調整って面倒だよね</p>
-        </header>
-
-        <div id="loader" class="flex justify-center items-center py-20">
-            <div class="loader"></div>
-            <p class="ml-4 text-lg text-gray-600">読み込み中...</p>
-        </div>
-
-        <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
-            <strong class="font-bold">エラー:</strong>
-            <span class="block sm:inline" id="error-text"></span>
-        </div>
-
-        <div id="create-event-page" class="hidden">
-            <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
-                <h2 class="text-2xl font-bold mb-6 text-gray-800">新しいイベントを作成</h2>
-                <div class="space-y-6">
-                    <div>
-                        <label for="event-name" class="block text-sm font-medium text-gray-700 mb-1">イベント名</label>
-                        <input type="text" id="event-name" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 transition" placeholder="例：女子会ランチ">
-                    </div>
-                    <div>
-                        <label for="event-description" class="block text-sm font-medium text-gray-700 mb-1">メモ</label>
-                        <textarea id="event-description" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 transition" placeholder="例：お店の候補とか書いとこ！"></textarea>
-                    </div>
-                    <div>
-                        <label for="candidate-dates-input" class="block text-sm font-medium text-gray-700 mb-1">候補日時</label>
-                        <input type="text" id="candidate-dates-input" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" placeholder="クリックしてカレンダーから日時を選択">
-                        <div id="selected-dates-container" class="mt-4 space-y-2"></div>
-                    </div>
-                    <div>
-                        <label for="event-password" class="block text-sm font-medium text-gray-700 mb-1">パスワード (任意)</label>
-                        <input type="password" id="event-password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 transition" placeholder="ないしょのパスワード">
-                    </div>
-                    <div>
-                        <button id="create-event-btn" class="w-full bg-pink-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 focus:outline-none focus:ring-4 focus:ring-pink-300 transition-transform transform hover:scale-105">
-                            イベントを作成
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="password-prompt" class="hidden">
-             <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
-                <h2 class="text-2xl font-bold mb-6 text-gray-800">パスワード認証</h2>
-                <p class="text-gray-600 mb-4">このイベントを閲覧するにはパスワードが必要です。</p>
-                <div class="space-y-4">
-                    <div>
-                        <label for="password-input" class="block text-sm font-medium text-gray-700 mb-1">パスワード</label>
-                        <input type="password" id="password-input" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500">
-                    </div>
-                     <p id="password-error" class="text-red-500 text-sm hidden">パスワードが違います。</p>
-                    <div>
-                        <button id="submit-password-btn" class="w-full bg-pink-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 focus:outline-none focus:ring-4 focus:ring-pink-300">
-                            認証
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="event-page" class="hidden">
-            <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg mb-8">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h2 id="event-name-display" class="text-2xl sm:text-3xl font-bold text-gray-900"></h2>
-                        <p id="event-description-display" class="mt-2 text-gray-600 whitespace-pre-wrap"></p>
-                    </div>
-                    <button id="back-to-create-btn" class="text-pink-600 hover:underline flex-shrink-0 ml-4">← 新規作成</button>
-                </div>
-                <div class="mt-4 p-4 bg-pink-50 border border-pink-200 rounded-lg">
-                    <p class="text-sm text-pink-800"><strong>共有URL:</strong> このページのURLをコピーして参加者に共有してください。</p>
-                    <div class="mt-2 flex items-center">
-                        <input type="text" id="share-url" readonly class="w-full bg-white px-3 py-2 border border-gray-300 rounded-l-lg focus:outline-none">
-                        <button id="copy-url-btn" class="bg-pink-500 text-white px-4 py-2 rounded-r-lg hover:bg-pink-600">コピー</button>
-                    </div>
-                    <span id="copy-feedback" class="text-sm text-green-600 mt-1 hidden">コピーしました！</span>
-                </div>
-            </div>
-
-            <div class="overflow-x-auto bg-white p-6 sm:p-8 rounded-2xl shadow-lg mb-8">
-                <h3 class="text-xl font-bold mb-4">出欠表</h3>
-                <div id="availability-table-container"></div>
-            </div>
-
-            <!-- ▼▼ 集計の可視化ブロック（グラフ＋ランキング＋👑） ▼▼ -->
-            <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg mb-8">
-              <h3 class="text-xl font-bold mb-4">集計の可視化</h3>
-
-              <!-- 👑 本命バッジ（クリックで紙吹雪） -->
-              <div id="best-day-badge" class="mb-4 hidden" title="クリックでお祝い！🎉">
-                <span class="inline-flex items-center px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm font-semibold">
-                  👑 本命：<span id="best-day-text" class="ml-1"></span>
-                </span>
-              </div>
-
-              <!-- 棒グラフ -->
-              <div class="w-full max-w-4xl">
-                <canvas id="summary-chart" height="160"></canvas>
-              </div>
-
-              <!-- ランキング -->
-              <div class="mt-6">
-                <h4 class="font-semibold mb-2">○の多い順ランキング</h4>
-                <ol id="ranking-list" class="list-decimal list-inside text-sm text-gray-800 space-y-1"></ol>
-              </div>
-            </div>
-            <!-- ▲▲ 集計の可視化ブロック ▲▲ -->
-
-            <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
-                <h3 class="text-xl font-bold mb-4">出欠を登録・更新</h3>
-                <div class="space-y-4">
-                    <div>
-                        <label for="participant-name" class="block text-sm font-medium text-gray-700 mb-1">名前</label>
-                        <input type="text" id="participant-name" class="w-full sm:w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500" placeholder="あなたの名前">
-                    </div>
-                    <div id="availability-options-container"></div>
-                    <div>
-                        <label for="participant-comment" class="block text-sm font-medium text-gray-700 mb-1">コメント (任意)</label>
-                        <input type="text" id="participant-comment" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500" placeholder="例：ちょっと遅れるかも！">
-                    </div>
-                    <div>
-                        <button id="submit-response-btn" class="w-full sm:w-auto bg-rose-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-300 transition-transform transform hover:scale-105">
-                            登録・更新
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div id="loader" class="flex justify-center items-center py-20">
+      <div class="loader"></div>
+      <p class="ml-4 text-lg text-gray-600">読み込み中...</p>
     </div>
 
-    <!-- ライブラリ読み込み -->
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://npmcdn.com/flatpickr/dist/l10n/ja.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- 紙吹雪ライブラリ -->
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
+      <strong class="font-bold">エラー:</strong>
+      <span class="block sm:inline" id="error-text"></span>
+    </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <!-- 作成ページ -->
+    <div id="create-event-page" class="hidden">
+      <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+        <h2 class="text-2xl font-bold mb-6 text-gray-800">新しいイベントを作成</h2>
+        <div class="space-y-6">
+          <div>
+            <label for="event-name" class="block text-sm font-medium text-gray-700 mb-1">イベント名</label>
+            <input id="event-name" type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 transition" placeholder="例：女子会ランチ"/>
+          </div>
+          <div>
+            <label for="event-description" class="block text-sm font-medium text-gray-700 mb-1">メモ</label>
+            <textarea id="event-description" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 transition" placeholder="例：お店の候補とか書いとこ！"></textarea>
+          </div>
+          <div>
+            <label for="candidate-dates-input" class="block text-sm font-medium text-gray-700 mb-1">候補日時</label>
+            <input id="candidate-dates-input" type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" placeholder="クリックしてカレンダーから日時を選択"/>
+            <div id="selected-dates-container" class="mt-4 space-y-2"></div>
+          </div>
+          <div>
+            <label for="event-password" class="block text-sm font-medium text-gray-700 mb-1">パスワード (任意)</label>
+            <input id="event-password" type="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 transition" placeholder="ないしょのパスワード"/>
+          </div>
+          <div>
+            <button id="create-event-btn" class="w-full bg-pink-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 focus:outline-none focus:ring-4 focus:ring-pink-300 transition-transform transform hover:scale-105">イベントを作成</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
-        const appId = 'chouseisan-on-github-pages';
-        let db, auth;
-        let currentEventId = null;
-        let currentEventUnsubscribe = null;
-        let selectedDates = [];
-        let flatpickrInstance = null;
-        let tempEventData = null; 
+    <!-- パスワード -->
+    <div id="password-prompt" class="hidden">
+      <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+        <h2 class="text-2xl font-bold mb-6 text-gray-800">パスワード認証</h2>
+        <p class="text-gray-600 mb-4">このイベントを閲覧するにはパスワードが必要です。</p>
+        <div class="space-y-4">
+          <div>
+            <label for="password-input" class="block text-sm font-medium text-gray-700 mb-1">パスワード</label>
+            <input id="password-input" type="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500"/>
+          </div>
+          <p id="password-error" class="text-red-500 text-sm hidden">パスワードが違います。</p>
+          <div>
+            <button id="submit-password-btn" class="w-full bg-pink-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 focus:outline-none focus:ring-4 focus:ring-pink-300">認証</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
-        const loader = document.getElementById('loader');
-        const createEventPage = document.getElementById('create-event-page');
-        const eventPage = document.getElementById('event-page');
-        const passwordPrompt = document.getElementById('password-prompt');
-        const errorContainer = document.getElementById('error-message');
-        const errorText = document.getElementById('error-text');
-        
-        async function initialize() {
-            try {
-                const firebaseConfig = {
-                  apiKey: "AIzaSyA2ZIXFrJC3nGFTso1EsNnTCjWCkDyWX8Q",
-                  authDomain: "schedule-app-51ab6.firebaseapp.com",
-                  projectId: "schedule-app-51ab6",
-                  storageBucket: "schedule-app-51ab6.appspot.com",
-                  messagingSenderId: "1047698114975",
-                  appId: "1:1047698114975:web:a8e7b4a4bf30f74e4095aa"
-                };
+    <!-- イベントページ -->
+    <div id="event-page" class="hidden">
+      <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg mb-8">
+        <div class="flex justify-between items-start mb-4">
+          <div>
+            <h2 id="event-name-display" class="text-2xl sm:text-3xl font-bold text-gray-900"></h2>
+            <p id="event-description-display" class="mt-2 text-gray-600 whitespace-pre-wrap"></p>
+          </div>
+          <button id="back-to-create-btn" class="text-pink-600 hover:underline flex-shrink-0 ml-4">← 新規作成</button>
+        </div>
+        <div class="mt-4 p-4 bg-pink-50 border border-pink-200 rounded-lg">
+          <p class="text-sm text-pink-800"><strong>共有URL:</strong> このページのURLをコピーして参加者に共有してください。</p>
+          <div class="mt-2 flex items-center">
+            <input id="share-url" type="text" readonly class="w-full bg-white px-3 py-2 border border-gray-300 rounded-l-lg focus:outline-none"/>
+            <button id="copy-url-btn" class="bg-pink-500 text-white px-4 py-2 rounded-r-lg hover:bg-pink-600">コピー</button>
+          </div>
+          <span id="copy-feedback" class="text-sm text-green-600 mt-1 hidden">コピーしました！</span>
+        </div>
+      </div>
 
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+      <!-- 出欠表 -->
+      <div class="overflow-x-auto bg-white p-6 sm:p-8 rounded-2xl shadow-lg mb-8">
+        <h3 class="text-xl font-bold mb-4">出欠表</h3>
+        <div id="availability-table-container"></div>
+      </div>
 
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        startApp();
-                    } else {
-                        try {
-                            await signInAnonymously(auth);
-                        } catch (authError) {
-                            console.error("Authentication error:", authError);
-                            showError("認証に失敗しました。");
-                        }
-                    }
-                });
-                
-            } catch (error) {
-                console.error("初期化エラー:", error);
-                showError("アプリケーションの初期化に失敗しました。ページを再読み込みしてください。");
-            }
-        }
+      <!-- 集計の可視化（⭕️棒グラフのみ＋本命バッジ＋ランキング） -->
+      <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg mb-8">
+        <h3 class="text-xl font-bold mb-4">集計の可視化</h3>
 
-        function startApp() {
-            handleRouting();
-            setupEventListeners();
-        }
+        <!-- 👑 本命バッジ（クリックで紙吹雪） -->
+        <div id="best-day-badge" class="mb-4 hidden" title="クリックでお祝い！🎉">
+          <span class="inline-flex items-center px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-sm font-semibold">
+            👑 本命：<span id="best-day-text" class="ml-1"></span>
+          </span>
+        </div>
 
-        function showPage(page) {
-            createEventPage.classList.add('hidden');
-            eventPage.classList.add('hidden');
-            passwordPrompt.classList.add('hidden');
-            loader.classList.add('hidden');
-            errorContainer.classList.add('hidden');
+        <!-- 棒グラフ（⭕️のみ） -->
+        <div class="w-full max-w-4xl">
+          <canvas id="summary-chart" height="160"></canvas>
+        </div>
 
-            if (page === 'create') {
-                createEventPage.classList.remove('hidden');
-                initializeCalendar();
-            } else if (page === 'event') {
-                eventPage.classList.remove('hidden');
-            } else if (page === 'password') {
-                passwordPrompt.classList.remove('hidden');
-            } else if (page === 'loader') {
-                loader.classList.remove('hidden');
-            }
-        }
+        <!-- ランキング -->
+        <div class="mt-6">
+          <h4 class="font-semibold mb-2">○の多い順ランキング</h4>
+          <ol id="ranking-list" class="list-decimal list-inside text-sm text-gray-800 space-y-1"></ol>
+        </div>
+      </div>
 
-        function showError(message) {
-            errorText.textContent = message;
-            errorContainer.classList.remove('hidden');
-            loader.classList.add('hidden');
-            eventPage.classList.add('hidden');
-            createEventPage.classList.add('hidden');
-        }
+      <!-- 参加入力 -->
+      <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+        <h3 class="text-xl font-bold mb-4">出欠を登録・更新</h3>
+        <div class="space-y-4">
+          <div>
+            <label for="participant-name" class="block text-sm font-medium text-gray-700 mb-1">名前</label>
+            <input id="participant-name" type="text" class="w-full sm:w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500" placeholder="あなたの名前"/>
+          </div>
+          <div id="availability-options-container"></div>
+          <div>
+            <label for="participant-comment" class="block text-sm font-medium text-gray-700 mb-1">コメント (任意)</label>
+            <input id="participant-comment" type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500" placeholder="例：ちょっと遅れるかも！"/>
+          </div>
+          <div>
+            <button id="submit-response-btn" class="w-full sm:w-auto bg-rose-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-300 transition-transform transform hover:scale-105">登録・更新</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-        function handleRouting() {
-            const params = new URLSearchParams(window.location.search);
-            const eventId = params.get('id');
+  <!-- Libs -->
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://npmcdn.com/flatpickr/dist/l10n/ja.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
-            if (eventId) {
-                loadEvent(eventId);
-            } else {
-                showPage('create');
-            }
-        }
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        function setupEventListeners() {
-            document.getElementById('create-event-btn').addEventListener('click', createEvent);
-            document.getElementById('submit-response-btn').addEventListener('click', submitResponse);
-            document.getElementById('copy-url-btn').addEventListener('click', copyUrlToClipboard);
-            document.getElementById('back-to-create-btn').addEventListener('click', () => {
-                window.location.href = window.location.href.split('?')[0];
-            });
-            document.getElementById('submit-password-btn').addEventListener('click', verifyPassword);
-            document.getElementById('selected-dates-container').addEventListener('click', (e) => {
-                if (e.target && e.target.closest('.remove-date-btn')) {
-                    const dateToRemove = e.target.closest('.remove-date-btn').dataset.date;
-                    selectedDates = selectedDates.filter(d => d !== dateToRemove);
-                    if (flatpickrInstance) {
-                        flatpickrInstance.setDate(selectedDates.map(d => new Date(d)));
-                    }
-                    renderSelectedDates();
-                }
-            });
+    const appId = 'chouseisan-on-github-pages';
+    let db, auth;
+    let currentEventId = null;
+    let currentEventUnsubscribe = null;
+    let selectedDates = [];
+    let flatpickrInstance = null;
+    let tempEventData = null;
 
-            // 👑バッジ クリックで紙吹雪（renderBestBadge 内でも安全に付け直す）
-            const bestBadge = document.getElementById('best-day-badge');
-            bestBadge.addEventListener('click', () => {
-                confettiBurst();
-            });
-        }
+    const loader = document.getElementById('loader');
+    const createEventPage = document.getElementById('create-event-page');
+    const eventPage = document.getElementById('event-page');
+    const passwordPrompt = document.getElementById('password-prompt');
+    const errorContainer = document.getElementById('error-message');
+    const errorText = document.getElementById('error-text');
 
-        function initializeCalendar() {
-            if (flatpickrInstance) return;
-            flatpickr.localize(flatpickr.l10ns.ja);
-            flatpickrInstance = flatpickr("#candidate-dates-input", {
-                mode: "multiple",
-                enableTime: true,       // 時間選択を有効化
-                dateFormat: "Y-m-d H:i", // データ形式を YYYY-MM-DD HH:MM に
-                time_24hr: true,        // 24時間表示
-                minDate: "today",
-                onChange: function(dates) {
-                    selectedDates = dates.map(d => flatpickr.formatDate(d, "Y-m-d H:i")).sort();
-                    renderSelectedDates();
-                }
-            });
-        }
+    async function initialize() {
+      try {
+        const firebaseConfig = {
+          apiKey: "AIzaSyA2ZIXFrJC3nGFTso1EsNnTCjWCkDyWX8Q",
+          authDomain: "schedule-app-51ab6.firebaseapp.com",
+          projectId: "schedule-app-51ab6",
+          storageBucket: "schedule-app-51ab6.appspot.com",
+          messagingSenderId: "1047698114975",
+          appId: "1:1047698114975:web:a8e7b4a4bf30f74e4095aa"
+        };
 
-        function renderSelectedDates() {
-            const container = document.getElementById('selected-dates-container');
-            container.innerHTML = '';
-            selectedDates.forEach(dateStr => {
-                const dateEl = document.createElement('div');
-                dateEl.className = 'flex items-center justify-between bg-gray-100 p-2 rounded-lg text-sm';
-                dateEl.innerHTML = `
-                    <span>${formatDateForDisplay(dateStr)}</span>
-                    <button data-date="${dateStr}" class="remove-date-btn text-red-500 hover:text-red-700 font-bold text-lg px-2">&times;</button>
-                `;
-                container.appendChild(dateEl);
-            });
-        }
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
 
-        function formatDateForDisplay(dateStr) {
-            try {
-                const date = new Date(dateStr.replace(' ', 'T'));
-                const year = date.getFullYear();
-                const month = date.getMonth() + 1;
-                const day = date.getDate();
-                const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
-                const hours = String(date.getHours()).padStart(2, '0');
-                const minutes = String(date.getMinutes()).padStart(2, '0');
-                return `${year}年${month}月${day}日(${dayOfWeek}) ${hours}:${minutes}`;
-            } catch (e) {
-                return dateStr;
-            }
-        }
-
-        async function createEvent() {
-            const createBtn = document.getElementById('create-event-btn');
-            const eventName = document.getElementById('event-name').value.trim();
-            const description = document.getElementById('event-description').value.trim();
-            const password = document.getElementById('event-password').value.trim();
-
-            if (!eventName || selectedDates.length === 0) {
-                alert('イベント名と候補日時は必須です。');
-                return;
-            }
-
-            createBtn.disabled = true;
-            createBtn.textContent = '作成中...';
-            createBtn.classList.add('opacity-50', 'cursor-not-allowed');
-
-            try {
-                const eventData = {
-                    name: eventName,
-                    description: description,
-                    candidateDates: selectedDates,
-                    participants: [],
-                    createdAt: serverTimestamp(),
-                };
-
-                if (password) {
-                    eventData.password = password;
-                }
-                
-                const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'chouseisan-events');
-                const docRef = await addDoc(collectionRef, eventData);
-                
-                loadEvent(docRef.id);
-
-            } catch (error) {
-                console.error("イベント作成エラー:", error);
-                showError("イベントの作成に失敗しました。");
-                createBtn.disabled = false;
-                createBtn.textContent = 'イベントを作成';
-                createBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            }
-        }
-
-        async function loadEvent(eventId) {
-            showPage('loader');
-            currentEventId = eventId;
-
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chouseisan-events', eventId);
-            
-            try {
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    const eventData = docSnap.data();
-                    tempEventData = eventData;
-                    
-                    const isAuthenticated = sessionStorage.getItem(`event_auth_${eventId}`) === 'true';
-
-                    if (eventData.password && !isAuthenticated) {
-                        showPage('password');
-                    } else {
-                        displayEvent(eventId, eventData);
-                        listenForEventUpdates(eventId);
-                        showPage('event');
-                    }
-                } else {
-                    showError("指定されたイベントが見つかりません。URLが正しいか確認してください。");
-                }
-            } catch (error) {
-                console.error("イベント読み込みエラー:", error);
-                showError("イベントの読み込み中にエラーが発生しました。");
-            }
-        }
-
-        function verifyPassword() {
-            const enteredPassword = document.getElementById('password-input').value;
-            if (enteredPassword === tempEventData.password) {
-                sessionStorage.setItem(`event_auth_${currentEventId}`, 'true');
-                displayEvent(currentEventId, tempEventData);
-                listenForEventUpdates(currentEventId);
-                showPage('event');
-            } else {
-                const passwordError = document.getElementById('password-error');
-                passwordError.classList.remove('hidden');
-            }
-        }
-
-        function listenForEventUpdates(eventId) {
-            if (currentEventUnsubscribe) {
-                currentEventUnsubscribe();
-            }
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chouseisan-events', eventId);
-            currentEventUnsubscribe = onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    displayEvent(eventId, docSnap.data());
-                }
-            }, (error) => {
-                console.error("リアルタイム更新エラー:", error);
-                showError("イベントの更新情報の取得に失敗しました。");
-            });
-        }
-
-        function displayEvent(eventId, eventData) {
-            document.getElementById('event-name-display').textContent = eventData.name;
-            document.getElementById('event-description-display').textContent = eventData.description;
-            
-            const baseUrl = window.location.href.split('?')[0];
-            const newUrl  = `${baseUrl}?id=${eventId}`;
-            document.getElementById('share-url').value = newUrl;
-
-            renderAvailabilityTable(eventData.candidateDates, eventData.participants);
-            renderAvailabilityOptions(eventData.candidateDates);
-
-            // ▼ 集計ウィジェット（グラフ・ランキング・👑）更新
-            renderSummaryWidgets(eventData.candidateDates, eventData.participants);
-        }
-        
-        function renderAvailabilityTable(dates, participants) {
-            const container = document.getElementById('availability-table-container');
-            const statusMap = { '○': 'bg-pink-100 text-pink-800', '△': 'bg-orange-100 text-orange-800', '×': 'bg-red-100 text-red-800' };
-            const statusIcons = { '○': '○', '△': '△', '×': '×' };
-
-            let tableHTML = `<table class="min-w-full divide-y divide-gray-200">`;
-            
-            tableHTML += `<thead class="bg-gray-50"><tr>`;
-            tableHTML += `<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider name-cell">名前</th>`;
-            (dates || []).forEach(date => {
-                tableHTML += `<th class="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider table-cell">${formatDateForDisplay(date).replace(' ', '<br>')}</th>`;
-            });
-            tableHTML += `<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider name-cell">コメント</th>`;
-            tableHTML += `</tr></thead>`;
-
-            tableHTML += `<tbody class="bg-white divide-y divide-gray-200">`;
-            (participants || []).forEach(p => {
-                tableHTML += `<tr>`;
-                tableHTML += `<td class="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 name-cell">${p.name}</td>`;
-                (p.availability || []).forEach(status => {
-                    tableHTML += `<td class="px-3 py-4 whitespace-nowrap text-2xl font-bold table-cell ${statusMap[status] || ''}">${statusIcons[status] || ''}</td>`;
-                });
-                tableHTML += `<td class="px-3 py-4 text-sm text-gray-500 name-cell">${p.comment || ''}</td>`;
-                tableHTML += `</tr>`;
-            });
-            tableHTML += `</tbody>`;
-
-            const summary = { '○': Array((dates || []).length).fill(0), '△': Array((dates || []).length).fill(0), '×': Array((dates || []).length).fill(0) };
-            (participants || []).forEach(p => {
-                (p.availability || []).forEach((status, i) => {
-                    if (summary[status] && i < (dates || []).length) {
-                        summary[status][i]++;
-                    }
-                });
-            });
-
-            tableHTML += `<tfoot class="bg-gray-100">`;
-            ['○', '△', '×'].forEach(status => {
-                tableHTML += `<tr class="summary-row">`;
-                tableHTML += `<td class="px-3 py-3 text-lg font-bold text-center ${statusMap[status]}">${status}</td>`;
-                summary[status].forEach(count => {
-                    tableHTML += `<td class="px-3 py-3 text-center text-lg font-bold ${statusMap[status]}">${count}</td>`;
-                });
-                tableHTML += `<td></td>`;
-                tableHTML += `</tr>`;
-            });
-            tableHTML += `</tfoot></table>`;
-            container.innerHTML = tableHTML;
-        }
-
-        function renderAvailabilityOptions(dates) {
-            const container = document.getElementById('availability-options-container');
-            let optionsHTML = '<p class="block text-sm font-medium text-gray-700 mb-2">各日程の出欠</p><div class="space-y-3">';
-            (dates || []).forEach((date, index) => {
-                optionsHTML += `
-                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <span class="font-medium text-gray-800">${formatDateForDisplay(date)}</span>
-                        <fieldset class="flex space-x-2 sm:space-x-4">
-                            <label class="flex items-center space-x-1 cursor-pointer">
-                                <input type="radio" name="availability-${index}" value="○" class="form-radio h-5 w-5 text-pink-500">
-                                <span class="text-xl font-bold text-pink-500">○</span>
-                            </label>
-                            <label class="flex items-center space-x-1 cursor-pointer">
-                                <input type="radio" name="availability-${index}" value="△" class="form-radio h-5 w-5 text-orange-400">
-                                <span class="text-xl font-bold text-orange-400">△</span>
-                            </label>
-                            <label class="flex items-center space-x-1 cursor-pointer">
-                                <input type="radio" name="availability-${index}" value="×" class="form-radio h-5 w-5 text-red-600">
-                                <span class="text-xl font-bold text-red-600">×</span>
-                            </label>
-                        </fieldset>
-                    </div>
-                `;
-            });
-            optionsHTML += '</div>';
-            container.innerHTML = optionsHTML;
-        }
-
-        async function submitResponse() {
-            const name = document.getElementById('participant-name').value.trim();
-            if (!name) {
-                alert('名前を入力してください。');
-                return;
-            }
-
-            const eventId = currentEventId;
-            if (!eventId) {
-                showError("イベントIDが見つかりません。ページを更新してください。");
-                return;
-            }
-
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chouseisan-events', eventId);
-
-            try {
-                const docSnap = await getDoc(docRef);
-                if (!docSnap.exists()) {
-                    showError("イベントが見つかりません。");
-                    return;
-                }
-
-                const eventData = docSnap.data();
-                const availability = [];
-                let allAnswered = true;
-                eventData.candidateDates.forEach((_, index) => {
-                    const selected = document.querySelector(`input[name="availability-${index}"]:checked`);
-                    if (selected) {
-                        availability.push(selected.value);
-                    } else {
-                        allAnswered = false;
-                    }
-                });
-
-                if (!allAnswered) {
-                    alert('すべての日程について出欠を選択してください。');
-                    return;
-                }
-                
-                const comment = document.getElementById('participant-comment').value.trim();
-                const newParticipant = { name, availability, comment };
-
-                const participants = eventData.participants || [];
-                const existingParticipantIndex = participants.findIndex(p => p.name === name);
-
-                if (existingParticipantIndex > -1) {
-                    participants[existingParticipantIndex] = newParticipant;
-                } else {
-                    participants.push(newParticipant);
-                }
-
-                await setDoc(docRef, { participants: participants }, { merge: true });
-                alert('出欠を登録・更新しました。');
-
-                // 入力クリア
-                document.getElementById('participant-name').value = '';
-                document.getElementById('participant-comment').value = '';
-                document.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
-
-                // 軽くお祝い（小さめ紙吹雪）
-                confettiBurst({ mini: true });
-
-            } catch (error) {
-                console.error("出欠登録エラー:", error);
-                showError("出欠の登録に失敗しました。");
-            }
-        }
-        
-        function copyUrlToClipboard() {
-            const urlInput = document.getElementById('share-url');
-            urlInput.select();
-            try {
-                const successful = document.execCommand('copy');
-                const feedback = document.getElementById('copy-feedback');
-                if(successful) {
-                    feedback.classList.remove('hidden');
-                    setTimeout(() => {
-                        feedback.classList.add('hidden');
-                    }, 2000);
-                }
-            } catch (err) {
-                alert('URLのコピーに失敗しました。手動でコピーしてください。');
-            }
-        }
-
-        // ======== 集計 & 可視化 ここから ========
-        let summaryChartInstance = null;
-
-        /** 日付配列・参加者配列から ○△× のカウント配列を返す */
-        function computeSummary(dates, participants) {
-          const n = (dates || []).length;
-          const summary = {
-            '○': Array(n).fill(0),
-            '△': Array(n).fill(0),
-            '×': Array(n).fill(0),
-          };
-          (participants || []).forEach(p => {
-            (p.availability || []).forEach((status, i) => {
-              if (summary[status] && i < n) summary[status][i]++;
-            });
-          });
-          return summary;
-        }
-
-        /** ○の数が最多のインデックスを返す（同率なら最初を採用） */
-        function getBestIndex(okCounts) {
-          let best = -1, bestVal = -1;
-          (okCounts || []).forEach((v, i) => {
-            if (v > bestVal) { bestVal = v; best = i; }
-          });
-          return best;
-        }
-
-        /** ヒューマン可読表示（日付文字列 "YYYY-MM-DD HH:mm" を既存の整形ルールで） */
-        function humanDate(dateStr) {
-          return formatDateForDisplay(dateStr);
-        }
-
-        /** 棒グラフ描画（堆積棒：○△×） */
-        function renderSummaryChart(dates, summary) {
-          const labels = (dates || []).map(d => humanDate(d).replace(' ', '\n'));
-          const ok = summary['○'], maybe = summary['△'], ng = summary['×'];
-
-          const ctx = document.getElementById('summary-chart').getContext('2d');
-
-          // 再描画時に破棄
-          if (summaryChartInstance) {
-            summaryChartInstance.destroy();
+        onAuthStateChanged(auth, async (user) => {
+          if (user) startApp();
+          else {
+            try { await signInAnonymously(auth); }
+            catch(e){ console.error(e); showError("認証に失敗しました。"); }
           }
+        });
+      } catch (e) {
+        console.error("初期化エラー:", e);
+        showError("アプリ初期化に失敗しました。再読み込みしてください。");
+      }
+    }
 
-          summaryChartInstance = new Chart(ctx, {
-            type: 'bar',
-            data: {
-              labels,
-              datasets: [
-                { label: '○', data: ok, backgroundColor: 'rgba(236, 72, 153, 0.7)' },       // pink-500
-              ]
-            },
-            options: {
-              responsive: true,
-              plugins: {
-                legend: { position: 'top' },
-                tooltip: { mode: 'index', intersect: false }
-              },
-              scales: {
-                x: { stacked: true, ticks: { maxRotation: 0, minRotation: 0 } },
-                y: { stacked: true, beginAtZero: true, precision: 0 }
-              }
-            }
-          });
+    function startApp(){ handleRouting(); setupEventListeners(); }
+
+    function showPage(page){
+      createEventPage.classList.add('hidden');
+      eventPage.classList.add('hidden');
+      passwordPrompt.classList.add('hidden');
+      loader.classList.add('hidden');
+      errorContainer.classList.add('hidden');
+
+      if(page==='create'){ createEventPage.classList.remove('hidden'); initializeCalendar(); }
+      else if(page==='event'){ eventPage.classList.remove('hidden'); }
+      else if(page==='password'){ passwordPrompt.classList.remove('hidden'); }
+      else if(page==='loader'){ loader.classList.remove('hidden'); }
+    }
+
+    function showError(msg){
+      errorText.textContent = msg;
+      errorContainer.classList.remove('hidden');
+      loader.classList.add('hidden');
+      eventPage.classList.add('hidden');
+      createEventPage.classList.add('hidden');
+    }
+
+    function handleRouting(){
+      const params = new URLSearchParams(window.location.search);
+      const eventId = params.get('id');
+      if(eventId) loadEvent(eventId);
+      else showPage('create');
+    }
+
+    function setupEventListeners(){
+      document.getElementById('create-event-btn').addEventListener('click', createEvent);
+      document.getElementById('submit-response-btn').addEventListener('click', submitResponse);
+      document.getElementById('copy-url-btn').addEventListener('click', copyUrlToClipboard);
+      document.getElementById('back-to-create-btn').addEventListener('click', () => {
+        window.location.href = window.location.href.split('?')[0];
+      });
+      document.getElementById('submit-password-btn').addEventListener('click', verifyPassword);
+      document.getElementById('selected-dates-container').addEventListener('click', (e)=>{
+        if(e.target && e.target.closest('.remove-date-btn')){
+          const dateToRemove = e.target.closest('.remove-date-btn').dataset.date;
+          selectedDates = selectedDates.filter(d=> d!==dateToRemove);
+          if(flatpickrInstance) flatpickrInstance.setDate(selectedDates.map(d=> new Date(d)));
+          renderSelectedDates();
         }
+      });
 
-        /** ランキング（○の多い順）を描画（同率は △降順） */
-        function renderChartOkOnly(dates, okCounts) {
-          const list = document.getElementById('ranking-list');
-          const arr = (dates || []).map((d, i) => ({
-            idx: i,
-            label: humanDate(d),
-            ok: okCounts?.[i] || 0,
-            maybe: maybeCounts?.[i] || 0
-          }));
-          arr.sort((a, b) => (b.ok - a.ok) || (b.maybe - a.maybe));
+      // 👑クリックで紙吹雪
+      document.getElementById('best-day-badge').addEventListener('click', ()=> confettiBurst());
+    }
 
-          list.innerHTML = '';
-          arr.forEach((item, rank) => {
-            const li = document.createElement('li');
-            li.innerHTML = `<span class="font-medium">${item.label}</span> — ○ ${item.ok}人 / △ ${item.maybe}人`;
-            if (rank === 0) li.innerHTML = `👑 ${li.innerHTML}`;
-            list.appendChild(li);
-          });
+    function initializeCalendar(){
+      if(flatpickrInstance) return;
+      flatpickr.localize(flatpickr.l10ns.ja);
+      flatpickrInstance = flatpickr("#candidate-dates-input", {
+        mode: "multiple",
+        enableTime: true,
+        dateFormat: "Y-m-d H:i",
+        time_24hr: true,
+        minDate: "today",
+        onChange: function(dates){
+          selectedDates = dates.map(d => flatpickr.formatDate(d, "Y-m-d H:i")).sort();
+          renderSelectedDates();
         }
+      });
+    }
 
-        /** 本命バッジ（👑）表示＆クリック紙吹雪 */
-        function renderBestBadge(dates, okCounts) {
-          const badge = document.getElementById('best-day-badge');
-          const text = document.getElementById('best-day-text');
+    function renderSelectedDates(){
+      const container = document.getElementById('selected-dates-container');
+      container.innerHTML = '';
+      selectedDates.forEach(dateStr=>{
+        const el = document.createElement('div');
+        el.className = 'flex items-center justify-between bg-gray-100 p-2 rounded-lg text-sm';
+        el.innerHTML = `
+          <span>${formatDateForDisplay(dateStr)}</span>
+          <button data-date="${dateStr}" class="remove-date-btn text-red-500 hover:text-red-700 font-bold text-lg px-2">&times;</button>
+        `;
+        container.appendChild(el);
+      });
+    }
 
-          if (!dates || dates.length === 0) {
-            badge.classList.add('hidden');
-            return;
-          }
-          const bestIdx = getBestIndex(okCounts || []);
-          const bestLabel = bestIdx >= 0 ? humanDate(dates[bestIdx]) : null;
-          if (bestLabel) {
-            text.textContent = `${bestLabel}（○ ${okCounts[bestIdx]}人）`;
-            badge.classList.remove('hidden');
-            // クリックは setupEventListeners で一度登録済み。念のため重複防止で何もしない。
-          } else {
-            badge.classList.add('hidden');
-          }
+    function formatDateForDisplay(dateStr){
+      try{
+        const date = new Date(dateStr.replace(' ','T'));
+        const y = date.getFullYear();
+        const m = date.getMonth()+1;
+        const d = date.getDate();
+        const w = ['日','月','火','水','木','金','土'][date.getDay()];
+        const hh = String(date.getHours()).padStart(2,'0');
+        const mm = String(date.getMinutes()).padStart(2,'0');
+        return `${y}年${m}月${d}日(${w}) ${hh}:${mm}`;
+      }catch{ return dateStr; }
+    }
+
+    async function createEvent(){
+      const btn = document.getElementById('create-event-btn');
+      const name = document.getElementById('event-name').value.trim();
+      const description = document.getElementById('event-description').value.trim();
+      const password = document.getElementById('event-password').value.trim();
+
+      if(!name || selectedDates.length===0){ alert('イベント名と候補日時は必須です。'); return; }
+
+      btn.disabled = true; btn.textContent = '作成中...'; btn.classList.add('opacity-50','cursor-not-allowed');
+
+      try{
+        const eventData = { name, description, candidateDates: selectedDates, participants: [], createdAt: serverTimestamp() };
+        if(password) eventData.password = password;
+
+        const colRef = collection(db,'artifacts',appId,'public','data','chouseisan-events');
+        const docRef = await addDoc(colRef, eventData);
+        loadEvent(docRef.id);
+      }catch(e){
+        console.error("イベント作成エラー:", e);
+        showError("イベントの作成に失敗しました。");
+        btn.disabled = false; btn.textContent = 'イベントを作成'; btn.classList.remove('opacity-50','cursor-not-allowed');
+      }
+    }
+
+    async function loadEvent(eventId){
+      showPage('loader');
+      currentEventId = eventId;
+      const ref = doc(db,'artifacts',appId,'public','data','chouseisan-events',eventId);
+      try{
+        const snap = await getDoc(ref);
+        if(snap.exists()){
+          const data = snap.data();
+          tempEventData = data;
+          const authed = sessionStorage.getItem(`event_auth_${eventId}`) === 'true';
+          if(data.password && !authed){ showPage('password'); }
+          else { displayEvent(eventId,data); listenForEventUpdates(eventId); showPage('event'); }
+        }else{
+          showError("指定されたイベントが見つかりません。URLが正しいか確認してください。");
         }
+      }catch(e){
+        console.error("イベント読み込みエラー:", e);
+        showError("イベントの読み込み中にエラーが発生しました。");
+      }
+    }
 
-        /** 集計ウィジェット一括更新 */
-        function renderSummaryWidgets(dates, participants) {
-          const summary = computeSummary(dates, participants);
-          renderSummaryChart(dates, summary);
-          renderBestBadge(dates, summary['○']);
-          renderRanking(dates, summary['○'], summary['△']);
+    function verifyPassword(){
+      const entered = document.getElementById('password-input').value;
+      if(entered === tempEventData.password){
+        sessionStorage.setItem(`event_auth_${currentEventId}`,'true');
+        displayEvent(currentEventId,tempEventData);
+        listenForEventUpdates(currentEventId);
+        showPage('event');
+      }else{
+        document.getElementById('password-error').classList.remove('hidden');
+      }
+    }
+
+    function listenForEventUpdates(eventId){
+      if(currentEventUnsubscribe) currentEventUnsubscribe();
+      const ref = doc(db,'artifacts',appId,'public','data','chouseisan-events',eventId);
+      currentEventUnsubscribe = onSnapshot(ref, (snap)=>{
+        if(snap.exists()) displayEvent(eventId, snap.data());
+      }, (err)=>{
+        console.error("リアルタイム更新エラー:", err);
+        showError("イベントの更新情報の取得に失敗しました。");
+      });
+    }
+
+    function displayEvent(eventId, data){
+      document.getElementById('event-name-display').textContent = data.name;
+      document.getElementById('event-description-display').textContent = data.description;
+
+      const base = window.location.href.split('?')[0];
+      document.getElementById('share-url').value = `${base}?id=${eventId}`;
+
+      renderAvailabilityTable(data.candidateDates, data.participants);
+      renderAvailabilityOptions(data.candidateDates);
+
+      // ✅ 集計ウィジェット更新
+      renderSummaryWidgets(data.candidateDates, data.participants);
+    }
+
+    function renderAvailabilityTable(dates, participants){
+      const container = document.getElementById('availability-table-container');
+      const statusMap = { '○':'bg-pink-100 text-pink-800','△':'bg-orange-100 text-orange-800','×':'bg-red-100 text-red-800' };
+      const statusIcons = { '○':'○','△':'△','×':'×' };
+
+      let html = `<table class="min-w-full divide-y divide-gray-200">`;
+      html += `<thead class="bg-gray-50"><tr>`;
+      html += `<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider name-cell">名前</th>`;
+      (dates||[]).forEach(date=>{
+        html += `<th class="px-3 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider table-cell">${formatDateForDisplay(date).replace(' ','<br>')}</th>`;
+      });
+      html += `<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider name-cell">コメント</th>`;
+      html += `</tr></thead>`;
+
+      html += `<tbody class="bg-white divide-y divide-gray-200">`;
+      (participants||[]).forEach(p=>{
+        html += `<tr>`;
+        html += `<td class="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 name-cell">${p.name}</td>`;
+        (p.availability||[]).forEach(st=>{
+          html += `<td class="px-3 py-4 whitespace-nowrap text-2xl font-bold table-cell ${statusMap[st]||''}">${statusIcons[st]||''}</td>`;
+        });
+        html += `<td class="px-3 py-4 text-sm text-gray-500 name-cell">${p.comment||''}</td>`;
+        html += `</tr>`;
+      });
+      html += `</tbody>`;
+
+      // フッター集計
+      const summary = { '○':Array((dates||[]).length).fill(0), '△':Array((dates||[]).length).fill(0), '×':Array((dates||[]).length).fill(0) };
+      (participants||[]).forEach(p=>{
+        (p.availability||[]).forEach((st,i)=>{
+          if(summary[st] && i<(dates||[]).length) summary[st][i]++;
+        });
+      });
+
+      html += `<tfoot class="bg-gray-100">`;
+      ['○','△','×'].forEach(st=>{
+        html += `<tr class="summary-row">`;
+        html += `<td class="px-3 py-3 text-lg font-bold text-center ${statusMap[st]}">${st}</td>`;
+        summary[st].forEach(cnt=>{
+          html += `<td class="px-3 py-3 text-center text-lg font-bold ${statusMap[st]}">${cnt}</td>`;
+        });
+        html += `<td></td></tr>`;
+      });
+      html += `</tfoot></table>`;
+      container.innerHTML = html;
+    }
+
+    function renderAvailabilityOptions(dates){
+      const container = document.getElementById('availability-options-container');
+      let html = '<p class="block text-sm font-medium text-gray-700 mb-2">各日程の出欠</p><div class="space-y-3">';
+      (dates||[]).forEach((date,idx)=>{
+        html += `
+          <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <span class="font-medium text-gray-800">${formatDateForDisplay(date)}</span>
+            <fieldset class="flex space-x-2 sm:space-x-4">
+              <label class="flex items-center space-x-1 cursor-pointer">
+                <input type="radio" name="availability-${idx}" value="○" class="form-radio h-5 w-5 text-pink-500">
+                <span class="text-xl font-bold text-pink-500">○</span>
+              </label>
+              <label class="flex items-center space-x-1 cursor-pointer">
+                <input type="radio" name="availability-${idx}" value="△" class="form-radio h-5 w-5 text-orange-400">
+                <span class="text-xl font-bold text-orange-400">△</span>
+              </label>
+              <label class="flex items-center space-x-1 cursor-pointer">
+                <input type="radio" name="availability-${idx}" value="×" class="form-radio h-5 w-5 text-red-600">
+                <span class="text-xl font-bold text-red-600">×</span>
+              </label>
+            </fieldset>
+          </div>`;
+      });
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    async function submitResponse(){
+      const name = document.getElementById('participant-name').value.trim();
+      if(!name){ alert('名前を入力してください。'); return; }
+
+      const eventId = currentEventId;
+      if(!eventId){ showError("イベントIDが見つかりません。ページを更新してください。"); return; }
+
+      const ref = doc(db,'artifacts',appId,'public','data','chouseisan-events',eventId);
+      try{
+        const snap = await getDoc(ref);
+        if(!snap.exists()){ showError("イベントが見つかりません。"); return; }
+
+        const data = snap.data();
+        const availability = [];
+        let allAnswered = true;
+        data.candidateDates.forEach((_,i)=>{
+          const sel = document.querySelector(`input[name="availability-${i}"]:checked`);
+          if(sel) availability.push(sel.value); else allAnswered = false;
+        });
+        if(!allAnswered){ alert('すべての日程について出欠を選択してください。'); return; }
+
+        const comment = document.getElementById('participant-comment').value.trim();
+        const newP = { name, availability, comment };
+
+        const ps = data.participants || [];
+        const idx = ps.findIndex(p=> p.name===name);
+        if(idx>-1) ps[idx] = newP; else ps.push(newP);
+
+        await setDoc(ref, { participants: ps }, { merge:true });
+        alert('出欠を登録・更新しました。');
+
+        document.getElementById('participant-name').value = '';
+        document.getElementById('participant-comment').value = '';
+        document.querySelectorAll('input[type="radio"]').forEach(r=> r.checked=false);
+
+        // 控えめ紙吹雪
+        confettiBurst({ mini:true });
+      }catch(e){
+        console.error("出欠登録エラー:", e);
+        showError("出欠の登録に失敗しました。");
+      }
+    }
+
+    function copyUrlToClipboard(){
+      const input = document.getElementById('share-url');
+      input.select();
+      try{
+        const ok = document.execCommand('copy');
+        const fb = document.getElementById('copy-feedback');
+        if(ok){ fb.classList.remove('hidden'); setTimeout(()=>fb.classList.add('hidden'),2000); }
+      }catch{ alert('URLのコピーに失敗しました。手動でコピーしてください。'); }
+    }
+
+    // ======== 集計 & 可視化（⭕️だけの棒グラフ） ========
+    let summaryChartInstance = null;
+
+    function computeSummary(dates, participants){
+      const n = (dates||[]).length;
+      const summary = { '○':Array(n).fill(0), '△':Array(n).fill(0), '×':Array(n).fill(0) };
+      (participants||[]).forEach(p=>{
+        (p.availability||[]).forEach((st,i)=>{
+          if(summary[st] && i<n) summary[st][i]++;
+        });
+      });
+      return summary;
+    }
+
+    function getBestIndex(okCounts){
+      let best=-1, bestVal=-1;
+      (okCounts||[]).forEach((v,i)=>{ if(v>bestVal){ bestVal=v; best=i; } });
+      return best;
+    }
+
+    function humanDate(dateStr){ return formatDateForDisplay(dateStr); }
+
+    // ⭕️のみの棒グラフ
+    function renderSummaryChart(dates, summary){
+      const labels = (dates||[]).map(d=> humanDate(d).replace(' ','\n'));
+      const ok = summary['○'];
+      const ctx = document.getElementById('summary-chart').getContext('2d');
+
+      if(summaryChartInstance) summaryChartInstance.destroy();
+
+      summaryChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: '○（参加できる人数）', data: ok, backgroundColor: 'rgba(236, 72, 153, 0.75)' } // pink
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+          scales: { x: { ticks: { maxRotation: 0, minRotation: 0 } }, y: { beginAtZero: true, precision: 0 } }
         }
-        // ======== 集計 & 可視化 ここまで ========
+      });
+    }
 
-        // ======== 紙吹雪（canvas-confetti）ユーティリティ ========
-        function confettiBurst(options = {}) {
-          const { mini = false } = options;
-          const count = mini ? 80 : 180;
-          const spread = mini ? 50 : 75;
-          const ticks = mini ? 150 : 220;
-          const gravity = mini ? 1.0 : 0.9;
+    function renderRanking(dates, okCounts, maybeCounts){
+      const list = document.getElementById('ranking-list');
+      const arr = (dates||[]).map((d,i)=>({ idx:i, label:humanDate(d), ok: okCounts?.[i]||0, maybe: maybeCounts?.[i]||0 }));
+      arr.sort((a,b)=> (b.ok-a.ok) || (b.maybe-a.maybe));
 
-          // 中央から2発
-          confetti({
-            particleCount: Math.floor(count * 0.6),
-            spread,
-            startVelocity: 45,
-            gravity,
-            origin: { x: 0.5, y: 0.4 },
-            ticks
-          });
-          setTimeout(() => {
-            confetti({
-              particleCount: Math.floor(count * 0.4),
-              spread: spread + 10,
-              startVelocity: 55,
-              gravity,
-              origin: { x: 0.5, y: 0.6 },
-              ticks
-            });
-          }, 120);
+      list.innerHTML = '';
+      arr.forEach((item,rank)=>{
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="font-medium">${item.label}</span> — ○ ${item.ok}人 / △ ${item.maybe}人`;
+        if(rank===0) li.innerHTML = `👑 ${li.innerHTML}`;
+        list.appendChild(li);
+      });
+    }
 
-          // 左右から
-          setTimeout(() => {
-            confetti({
-              particleCount: Math.floor(count * 0.3),
-              angle: 60,
-              spread: spread + 10,
-              origin: { x: 0, y: 0.5 },
-              ticks
-            });
-            confetti({
-              particleCount: Math.floor(count * 0.3),
-              angle: 120,
-              spread: spread + 10,
-              origin: { x: 1, y: 0.5 },
-              ticks
-            });
-          }, 180);
-        }
-        // ======== 紙吹雪 ここまで ========
+    function renderBestBadge(dates, okCounts){
+      const badge = document.getElementById('best-day-badge');
+      const text = document.getElementById('best-day-text');
+      if(!dates || dates.length===0){ badge.classList.add('hidden'); return; }
 
-        initialize();
+      const idx = getBestIndex(okCounts||[]);
+      const label = idx>=0 ? humanDate(dates[idx]) : null;
 
-    </script>
+      if(label){
+        text.textContent = `${label}（○ ${okCounts[idx]}人）`;
+        badge.classList.remove('hidden');
+      }else{
+        badge.classList.add('hidden');
+      }
+    }
 
+    function renderSummaryWidgets(dates, participants){
+      const summary = computeSummary(dates, participants);
+      renderSummaryChart(dates, summary);      // ⭕️だけ描画
+      renderBestBadge(dates, summary['○']);    // 👑
+      renderRanking(dates, summary['○'], summary['△']); // ランキング（同率は△多い方を上）
+    }
+    // ============================================
+
+    // ======== 紙吹雪ユーティリティ ========
+    function confettiBurst(options={}){
+      const { mini=false } = options;
+      const count = mini ? 80 : 180;
+      const spread = mini ? 50 : 75;
+      const ticks = mini ? 150 : 220;
+      const gravity = mini ? 1.0 : 0.9;
+
+      confetti({ particleCount: Math.floor(count*0.6), spread, startVelocity:45, gravity, origin:{x:.5,y:.4}, ticks });
+      setTimeout(()=> confetti({ particleCount: Math.floor(count*0.4), spread:spread+10, startVelocity:55, gravity, origin:{x:.5,y:.6}, ticks }),120);
+      setTimeout(()=>{
+        confetti({ particleCount: Math.floor(count*0.3), angle:60, spread:spread+10, origin:{x:0,y:.5}, ticks });
+        confetti({ particleCount: Math.floor(count*0.3), angle:120, spread:spread+10, origin:{x:1,y:.5}, ticks });
+      },180);
+    }
+    // ============================================
+
+    initialize();
+  </script>
 </body>
 </html>
-
-
